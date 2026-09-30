@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>食品加工换线过敏原追踪</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>食品加工换线过敏原追踪</h1>
+    <div class="topbar-right">
+      <span id="residue-summary" class="residue-summary"></span>
+      <button id="btn-reload" class="btn btn-ghost" title="重新从本地数据库加载">↻ 刷新</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="batches">批次推导与放行</button>
+    <button class="tab" data-tab="events">事件录入（加工 / 清洗）</button>
+    <button class="tab" data-tab="materials">原料</button>
+    <button class="tab" data-tab="equipment">设备与残留</button>
+  </nav>
+
+  <div id="error-banner" class="error-banner hidden"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <main>
+    <!-- ============ 批次 ============ -->
+    <section id="tab-batches" class="tab-panel active">
+      <div class="panel-head">
+        <h2>批次推导结果（按加工时间排序）</h2>
+        <p class="hint">过敏原 = 全部输入（原料/前序批次）与设备残留的并集；点击批次可查看来源路径并登记放行。</p>
+      </div>
+      <div id="batches-list" class="card-list"></div>
+    </section>
+
+    <!-- ============ 事件 ============ -->
+    <section id="tab-events" class="tab-panel">
+      <div class="panel-head"><h2>事件录入</h2></div>
+
+      <form id="event-form" class="card form-card">
+        <input type="hidden" name="id" />
+        <div class="form-row">
+          <label>事件类型
+            <select name="kind" id="event-kind">
+              <option value="process">加工（产出批次）</option>
+              <option value="clean">清洗</option>
+            </select>
+          </label>
+          <label>设备
+            <select name="equipment_id" id="event-equipment" required></select>
+          </label>
+          <label>发生时间
+            <input type="datetime-local" name="occ_at" step="60" required />
+          </label>
+        </div>
+
+        <div id="process-fields">
+          <div class="form-row">
+            <label class="grow">产出批次号
+              <input type="text" name="batch_no" placeholder="例如 B-1005" />
+            </label>
+          </div>
+
+          <div class="inputs-head">
+            <strong>输入（原料 / 前序批次，可多个）</strong>
+            <button type="button" id="btn-add-input" class="btn btn-small">＋ 添加输入</button>
+          </div>
+          <div id="event-inputs"></div>
+        </div>
+
+        <div id="clean-fields" class="hidden">
+          <div class="form-row">
+            <label class="checkbox">
+              <input type="checkbox" name="verified" id="clean-verified" />
+              已核实清洗（核实后才清空设备残留）
+            </label>
+            <label class="grow">核实人
+              <input type="text" name="verified_by" placeholder="例如 李质检" />
+            </label>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="grow">备注
+            <input type="text" name="note" placeholder="可选" />
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="event-submit">保存事件</button>
+          <button type="button" class="btn btn-ghost hidden" id="event-cancel-edit">取消更正</button>
+        </div>
+      </form>
+
+      <h3 class="list-title">已登记事件</h3>
+      <div id="events-list" class="card-list"></div>
+    </section>
+
+    <!-- ============ 原料 ============ -->
+    <section id="tab-materials" class="tab-panel">
+      <div class="panel-head"><h2>原料及其过敏原</h2></div>
+      <form id="material-form" class="card form-card">
+        <input type="hidden" name="id" />
+        <div class="form-row">
+          <label class="grow">原料名称
+            <input type="text" name="name" required placeholder="例如 小麦面粉" />
+          </label>
+        </div>
+        <div class="form-row">
+          <label class="grow">过敏原（从常见类别选择，或直接输入后回车，逗号分隔亦可）
+            <input type="text" name="allergens_text" list="allergen-list" placeholder="含麸质的谷物, 乳" />
+            <datalist id="allergen-list"></datalist>
+          </label>
+        </div>
+        <div class="allergen-picker" id="allergen-picker"></div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="material-submit">添加原料</button>
+          <button type="button" class="btn btn-ghost hidden" id="material-cancel-edit">取消更正</button>
+        </div>
+      </form>
+      <div id="materials-list" class="card-list"></div>
+    </section>
+
+    <!-- ============ 设备 ============ -->
+    <section id="tab-equipment" class="tab-panel">
+      <div class="panel-head">
+        <h2>设备与当前残留</h2>
+        <p class="hint">残留随加工更新；只有<b>已核实清洗</b>才会清空。残留为截至最晚事件时的推导状态。</p>
+      </div>
+      <form id="equipment-form" class="card form-card inline-form">
+        <input type="text" name="name" required placeholder="新设备名称，例如 搅拌线 A2" />
+        <button type="submit" class="btn btn-primary">添加设备</button>
+      </form>
+      <div id="equipment-list" class="card-list"></div>
+    </section>
+  </main>
+
+  <!-- 放行弹窗 -->
+  <div id="release-modal" class="modal hidden">
+    <div class="modal-box">
+      <h3>登记批次放行</h3>
+      <div id="release-context" class="release-context"></div>
+      <form id="release-form">
+        <input type="hidden" name="batch_no" />
+        <label class="grow">放行人
+          <input type="text" name="released_by" required placeholder="您的姓名/工号" />
+        </label>
+        <label class="grow">备注
+          <input type="text" name="note" placeholder="可选" />
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">确认放行（按当前结果登记）</button>
+          <button type="button" class="btn btn-ghost" id="release-cancel">取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

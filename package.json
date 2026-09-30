@@ -1,0 +1,16 @@
+{
+  "name": "allergen-changeover-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "食品加工换线过敏原追踪：批次推导、设备残留与放行管理",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2"
+  }
+}

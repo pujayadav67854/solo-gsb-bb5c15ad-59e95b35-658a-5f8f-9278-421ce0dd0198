@@ -1,0 +1,24 @@
+services:
+  allergen-tracker:
+    build: .
+    image: allergen-changeover-tracker:latest
+    container_name: allergen-changeover-tracker
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # 首次启动对空数据库写入演示数据；置 0 则只建空表
+      SEED: "${SEED:-1}"
+      DATA_DIR: /data
+      PORT: "3000"
+    volumes:
+      - allergen-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/state').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  allergen-data:
